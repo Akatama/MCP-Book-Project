@@ -2,22 +2,11 @@ import asyncio
 from typing import Any, Dict, List, Optional
 
 import httpx
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.types import (
-    CallToolRequest,
-    CallToolResult,
-    ErrorData,
-    ListToolsResult,
-    TextContent,
-    Tool,
-)
-
+from fastmcp import FastMCP, Context, Tool
 
 BOOKS_API_BASE_URL = "https://booksapi-webapp.azurewebsites.net"
 
-
-server = Server("books-api-server")
+app = FastMCP("books-api-server")
 
 
 async def fetch_books_by_author(
@@ -46,145 +35,74 @@ async def fetch_books_by_title(
         return resp.json()
 
 
-@server.list_tools()
-async def list_tools() -> ListToolsResult:
+@app.tool(
+    name="get_books_by_author",
+    description=(
+        "Search for books by author name. "
+        "The author_name is treated as a partial match pattern. "
+        "Optionally filter by publish_by_date (YYYY-MM-DD)."
+    ),
+)
+async def get_books_by_author(
+    ctx: Context,
+    author_name: str,
+    publish_by_date: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """
-    Expose the Books API operations as MCP tools.
+    Search for books by author name.
+
+    Args:
+        ctx: FastMCP context (unused, but required by FastMCP).
+        author_name: Author name (partial match allowed).
+        publish_by_date: Optional publish-by date filter in YYYY-MM-DD format.
+
+    Returns:
+        A list of book objects from the Books API.
     """
-    return ListToolsResult(
-        tools=[
-            Tool(
-                name="get_books_by_author",
-                description=(
-                    "Search for books by author name. "
-                    "The author_name is treated as a partial match pattern. "
-                    "Optionally filter by publish_by_date (YYYY-MM-DD)."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "author_name": {
-                            "type": "string",
-                            "description": "Author name (partial match allowed).",
-                        },
-                        "publish_by_date": {
-                            "type": ["string", "null"],
-                            "description": (
-                                "Optional publish-by date filter in YYYY-MM-DD format."
-                            ),
-                        },
-                    },
-                    "required": ["author_name"],
-                },
-            ),
-            Tool(
-                name="get_books_by_title",
-                description=(
-                    "Search for books by book title. "
-                    "The book_name is treated as a partial match pattern. "
-                    "Optionally filter by publish_by_date (YYYY-MM-DD)."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "book_name": {
-                            "type": "string",
-                            "description": "Book title (partial match allowed).",
-                        },
-                        "publish_by_date": {
-                            "type": ["string", "null"],
-                            "description": (
-                                "Optional publish-by date filter in YYYY-MM-DD format."
-                            ),
-                        },
-                    },
-                    "required": ["book_name"],
-                },
-            ),
-        ]
-    )
+    author_name = author_name.strip()
+    if not author_name:
+        raise ValueError("author_name is required")
+
+    return await fetch_books_by_author(author_name, publish_by_date)
 
 
-@server.call_tool()
-async def call_tool(request: CallToolRequest) -> CallToolResult:
+@app.tool(
+    name="get_books_by_title",
+    description=(
+        "Search for books by book title. "
+        "The book_name is treated as a partial match pattern. "
+        "Optionally filter by publish_by_date (YYYY-MM-DD)."
+    ),
+)
+async def get_books_by_title(
+    ctx: Context,
+    book_name: str,
+    publish_by_date: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """
-    Handle tool invocations from the MCP client.
+    Search for books by book title.
+
+    Args:
+        ctx: FastMCP context (unused, but required by FastMCP).
+        book_name: Book title (partial match allowed).
+        publish_by_date: Optional publish-by date filter in YYYY-MM-DD format.
+
+    Returns:
+        A list of book objects from the Books API.
     """
-    name = request.name
-    args = request.arguments or {}
+    book_name = book_name.strip()
+    if not book_name:
+        raise ValueError("book_name is required")
 
-    try:
-        if name == "get_books_by_author":
-            author_name = str(args.get("author_name", "")).strip()
-            if not author_name:
-                raise ValueError("author_name is required")
-
-            publish_by_date = args.get("publish_by_date")
-            books = await fetch_books_by_author(author_name, publish_by_date)
-
-            return CallToolResult(
-                content=[
-                    TextContent(
-                        type="text",
-                        text=httpx.dumps(books, indent=2)  # type: ignore[attr-defined]
-                        if hasattr(httpx, "dumps")
-                        else str(books),
-                    )
-                ]
-            )
-
-        if name == "get_books_by_title":
-            book_name = str(args.get("book_name", "")).strip()
-            if not book_name:
-                raise ValueError("book_name is required")
-
-            publish_by_date = args.get("publish_by_date")
-            books = await fetch_books_by_title(book_name, publish_by_date)
-
-            return CallToolResult(
-                content=[
-                    TextContent(
-                        type="text",
-                        text=httpx.dumps(books, indent=2)  # type: ignore[attr-defined]
-                        if hasattr(httpx, "dumps")
-                        else str(books),
-                    )
-                ]
-            )
-
-        return CallToolResult(
-            error=ErrorData(
-                code="tool_not_found",
-                message=f"Unknown tool: {name}",
-            )
-        )
-
-    except httpx.HTTPStatusError as e:
-        return CallToolResult(
-            error=ErrorData(
-                code="http_error",
-                message=f"HTTP error while calling Books API: {e.response.status_code} {e.response.text}",
-            )
-        )
-    except Exception as e:
-        return CallToolResult(
-            error=ErrorData(
-                code="internal_error",
-                message=f"Unexpected error while calling tool {name}: {e}",
-            )
-        )
-
-
-async def run() -> None:
-    """
-    Entry point for running the MCP server over stdio.
-    """
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream)
+    return await fetch_books_by_title(book_name, publish_by_date)
 
 
 def main() -> None:
-    asyncio.run(run())
+    """
+    Entry point for running the MCP server over stdio using FastMCP.
+    """
+    # FastMCP provides a convenience runner for stdio-based MCP servers.
+    asyncio.run(app.run_stdio())
 
 
 if __name__ == "__main__":
