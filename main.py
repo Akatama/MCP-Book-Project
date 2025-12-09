@@ -2,7 +2,7 @@ import asyncio
 from typing import Any, Dict, List, Optional
 
 import httpx
-from fastmcp import FastMCP, Context, Tool
+from mcp.server.fastmcp import FastMCP, Context
 
 BOOKS_API_BASE_URL = "https://booksapi-webapp.azurewebsites.net"
 
@@ -101,7 +101,6 @@ def main() -> None:
     """
     Entry point for running the MCP server over stdio using FastMCP.
     """
-    # FastMCP provides a convenience runner for stdio-based MCP servers.
     asyncio.run(app.run_stdio())
 
 
