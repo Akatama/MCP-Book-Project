@@ -13,9 +13,12 @@ The server exposes two tools:
 
 Both tools support an optional `publish_by_date` query parameter.
 
+## Requirements
+
+- Python **3.13** or newer
+- `pip` (or another PEP 517–compatible installer)
+
 ## Installation
 
-You need Python 3.13 or newer.
-
-Install the package (and its console script `mcp-book-server`) with:
+From the root of this repository, install the project in your current environment:
 
