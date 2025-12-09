@@ -17,3 +17,5 @@ Both tools support an optional `publish_by_date` query parameter.
 
 You need Python 3.13 or newer.
 
+Install the package (and its console script `mcp-book-server`) with:
+
