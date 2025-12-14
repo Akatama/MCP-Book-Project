@@ -97,12 +97,5 @@ async def get_books_by_title(
     return await fetch_books_by_title(book_name, publish_by_date)
 
 
-def main() -> None:
-    """
-    Entry point for running the MCP server over stdio using FastMCP.
-    """
-    asyncio.run(app.run_stdio())
-
-
 if __name__ == "__main__":
     app.run(transport="stdio")
