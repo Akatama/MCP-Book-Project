@@ -1,3 +1,4 @@
 .env
 .aider*
 .python-version
+__pycache__
